@@ -4,123 +4,128 @@ trigger:
   tags:
     include: ['*']
 
-jobs:
-#
-#  - job: 'Tests'
-#    strategy:
-#      matrix:
-#        windows-stable:
-#          imageName: 'vs2017-win2016'
-#          rustup_toolchain: stable
-#        mac-stable:
-#          imageName: 'macos-10.14'
-#          rustup_toolchain: stable
-#        linux-stable:
-#          imageName: 'ubuntu-16.04'
-#          rustup_toolchain: stable
-#        linux-nightly:
-#          imageName: 'ubuntu-16.04'
-#          rustup_toolchain: nightly
-#    pool:
-#      vmImage: $(imageName)
-#    steps:
-#      - script: |
-#          curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain $RUSTUP_TOOLCHAIN
-#          echo "##vso[task.setvariable variable=PATH;]$PATH:$HOME/.cargo/bin"
-#        displayName: Install rust
-#        condition: ne( variables['Agent.OS'], 'Windows_NT' )
-#      - script: |
-#            curl -sSf -o rustup-init.exe https://win.rustup.rs
-#            rustup-init.exe -y --default-toolchain %RUSTUP_TOOLCHAIN%
-#            echo "##vso[task.setvariable variable=PATH;]%PATH%;%USERPROFILE%\.cargo\bin"
-#        displayName: Windows install rust
-#        condition: eq( variables['Agent.OS'], 'Windows_NT' )
-#      - script: cargo build --all
-#        displayName: Cargo build
-#      - script: cargo test --all
-#        displayName: Cargo test
+stages:
+  - stage: Tests
+    jobs:
+      - job: 'Tests'
+        strategy:
+          matrix:
+            windows-stable:
+              imageName: 'vs2017-win2016'
+              rustup_toolchain: stable
+            mac-stable:
+              imageName: 'macos-10.14'
+              rustup_toolchain: stable
+            linux-stable:
+              imageName: 'ubuntu-16.04'
+              rustup_toolchain: stable
+            linux-nightly:
+              imageName: 'ubuntu-16.04'
+              rustup_toolchain: nightly
+        pool:
+          vmImage: $(imageName)
+        steps:
+          - script: |
+              curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain $RUSTUP_TOOLCHAIN
+              echo "##vso[task.setvariable variable=PATH;]$PATH:$HOME/.cargo/bin"
+            displayName: Install rust
+            condition: ne( variables['Agent.OS'], 'Windows_NT' )
+          - script: |
+                curl -sSf -o rustup-init.exe https://win.rustup.rs
+                rustup-init.exe -y --default-toolchain %RUSTUP_TOOLCHAIN%
+                echo "##vso[task.setvariable variable=PATH;]%PATH%;%USERPROFILE%\.cargo\bin"
+            displayName: Windows install rust
+            condition: eq( variables['Agent.OS'], 'Windows_NT' )
+          - script: cargo build --all
+            displayName: Cargo build
+          - script: cargo test --all
+            displayName: Cargo test
 
-  - job: 'Release'
-    strategy:
-      matrix:
-        windows-stable:
-          imageName: 'vs2017-win2016'
-          rustup_toolchain: stable
-          target: 'x86_64-pc-windows-msvc'
-        mac-stable:
-          imageName: 'macos-10.14'
-          rustup_toolchain: stable
-          target: 'x86_64-apple-darwin'
-        linux-stable:
-          imageName: 'ubuntu-16.04'
-          rustup_toolchain: stable
-          target: 'x86_64-unknown-linux-gnu'
-    pool:
-      vmImage: $(imageName)
-    steps:
-      - script: |
-          MY_TAG="$(Build.SourceBranch)"
-          MY_TAG=${MY_TAG#refs/tags/}
-          echo $MY_TAG
-          echo "##vso[task.setvariable variable=build.my_tag]$MY_TAG"
-        displayName: "Create my tag variable"
-        condition: ne( variables['Agent.OS'], 'Windows_NT' )
-      - script: |
-          set MY_TAG=%Build.SourceBranch%
-          set MY_TAG=%MY_TAG:refs/tags/=%
-          echo %MY_TAG%
-          echo "##vso[task.setvariable variable=build.my_tag]%MY_TAG%"
-        displayName: "Create my tag variable in Windows"
-        condition: eq( variables['Agent.OS'], 'Windows_NT' )
 
-      - script: |
-          curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain $RUSTUP_TOOLCHAIN
-          echo "##vso[task.setvariable variable=PATH;]$PATH:$HOME/.cargo/bin"
-        displayName: Install rust
-        condition: ne( variables['Agent.OS'], 'Windows_NT' )
-      - script: |
-          curl -sSf -o rustup-init.exe https://win.rustup.rs
-          rustup-init.exe -y --default-toolchain %RUSTUP_TOOLCHAIN%
-          echo "##vso[task.setvariable variable=PATH;]%PATH%;%USERPROFILE%\.cargo\bin"
-        displayName: Windows install rust
-        condition: eq( variables['Agent.OS'], 'Windows_NT' )
+  - stage: Release
+    dependsOn: Tests
+    condition: startsWith(variables['Build.SourceBranch'], 'refs/tags/')
+    jobs:
+      - job: 'Release'
+        strategy:
+          matrix:
+            windows-stable:
+              imageName: 'vs2017-win2016'
+              rustup_toolchain: stable
+              target: 'x86_64-pc-windows-msvc'
+            mac-stable:
+              imageName: 'macos-10.14'
+              rustup_toolchain: stable
+              target: 'x86_64-apple-darwin'
+            linux-stable:
+              imageName: 'ubuntu-16.04'
+              rustup_toolchain: stable
+              target: 'x86_64-unknown-linux-gnu'
+        pool:
+          vmImage: $(imageName)
+        steps:
+          - script: |
+              MY_TAG="$(Build.SourceBranch)"
+              MY_TAG=${MY_TAG#refs/tags/}
+              echo $MY_TAG
+              echo "##vso[task.setvariable variable=build.my_tag]$MY_TAG"
+            displayName: "Create my tag variable"
+            condition: ne( variables['Agent.OS'], 'Windows_NT' )
+          - script: |
+              set MY_TAG=%Build.SourceBranch%
+              set MY_TAG=%MY_TAG:refs/tags/=%
+              echo %MY_TAG%
+              echo "##vso[task.setvariable variable=build.my_tag]%MY_TAG%"
+            displayName: "Create my tag variable in Windows"
+            condition: eq( variables['Agent.OS'], 'Windows_NT' )
 
-      - script: |
-          rustup target add $TARGET
-          cargo build --release --target $TARGET
-        condition: ne( variables['Agent.OS'], 'Windows_NT' )
-        displayName: Build
-      - script: |
-          rustup target add %TARGET%
-          cargo build --release --target %TARGET%
-        condition: eq( variables['Agent.OS'], 'Windows_NT' )
-        displayName: Build on Windows
+          - script: |
+              curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain $RUSTUP_TOOLCHAIN
+              echo "##vso[task.setvariable variable=PATH;]$PATH:$HOME/.cargo/bin"
+            displayName: Install rust
+            condition: ne( variables['Agent.OS'], 'Windows_NT' )
+          - script: |
+              curl -sSf -o rustup-init.exe https://win.rustup.rs
+              rustup-init.exe -y --default-toolchain %RUSTUP_TOOLCHAIN%
+              echo "##vso[task.setvariable variable=PATH;]%PATH%;%USERPROFILE%\.cargo\bin"
+            displayName: Windows install rust
+            condition: eq( variables['Agent.OS'], 'Windows_NT' )
 
-      - task: CopyFiles@2
-        displayName: Copy assets
-        inputs:
-          sourceFolder: '$(Build.SourcesDirectory)/target/$(TARGET)/release'
-          contents: hello
-          targetFolder: '$(Build.BinariesDirectory)/hello'
+          - script: |
+              rustup target add $TARGET
+              cargo build --release --target $TARGET
+            condition: ne( variables['Agent.OS'], 'Windows_NT' )
+            displayName: Build
+          - script: |
+              rustup target add %TARGET%
+              cargo build --release --target %TARGET%
+            condition: eq( variables['Agent.OS'], 'Windows_NT' )
+            displayName: Build on Windows
 
-      - task: ArchiveFiles@2
-        displayName: Gather assets
-        inputs:
-          rootFolderOrFile: '$(Build.BinariesDirectory)/hello'
-          archiveType: 'tar'
-          tarCompression: 'gz'
-          archiveFile: '$(Build.ArtifactStagingDirectory)/hello-$(build.my_tag)-$(TARGET).tar.gz'
+          - task: CopyFiles@2
+            displayName: Copy assets
+            inputs:
+              sourceFolder: '$(Build.SourcesDirectory)/target/$(TARGET)/release'
+              contents: hello
+              targetFolder: '$(Build.BinariesDirectory)/hello'
 
-      - task: GithubRelease@0
-        condition: and(succeeded(), startsWith(variables['Build.SourceBranch'], 'refs/tags/'))
-        inputs:
-          gitHubConnection: 'zola'
-          repositoryName: 'keats/azure-pipelines-test'
-          action: 'edit'
-          target: '$(build.sourceVersion)'
-          tagSource: 'manual'
-          tag: '$(build.my_tag)'
-          assets: '$(Build.ArtifactStagingDirectory)/hello-$(build.my_tag)-$(TARGET).tar.gz'
-          title: '$(build.my_tag)'
-          assetUploadMode: 'replace'
-          addChangeLog: false
+          - task: ArchiveFiles@2
+            displayName: Gather assets
+            inputs:
+              rootFolderOrFile: '$(Build.BinariesDirectory)/hello'
+              archiveType: 'tar'
+              tarCompression: 'gz'
+              archiveFile: '$(Build.ArtifactStagingDirectory)/hello-$(build.my_tag)-$(TARGET).tar.gz'
+
+          - task: GithubRelease@0
+            inputs:
+              gitHubConnection: 'zola'
+              repositoryName: 'keats/azure-pipelines-test'
+              action: 'edit'
+              target: '$(build.sourceVersion)'
+              tagSource: 'manual'
+              tag: '$(build.my_tag)'
+              assets: '$(Build.ArtifactStagingDirectory)/hello-$(build.my_tag)-$(TARGET).tar.gz'
+              title: '$(build.my_tag)'
+              assetUploadMode: 'replace'
+              addChangeLog: true

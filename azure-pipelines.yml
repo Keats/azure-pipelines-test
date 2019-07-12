@@ -19,9 +19,9 @@ stages:
             linux-stable:
               imageName: 'ubuntu-16.04'
               rustup_toolchain: stable
-            linux-nightly:
+            linux-1.34:
               imageName: 'ubuntu-16.04'
-              rustup_toolchain: nightly
+              rustup_toolchain: 1.34.0
         pool:
           vmImage: $(imageName)
         steps:
